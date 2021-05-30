@@ -3,6 +3,10 @@ from torch.utils.data import Dataset
 from betago.dataloader.goboard import GoBoard
 from betago.processor import SevenPlaneProcessor
 
+from tqdm import tqdm
+def load_to_memory(dataset):
+    return [x for x in tqdm(dataset)]
+
 spp = SevenPlaneProcessor()
 class SPBoWDataset(Dataset):
     
