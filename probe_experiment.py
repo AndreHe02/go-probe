@@ -5,66 +5,70 @@ import torch
 import os
 import numpy as np
 
-def train_epoch(feat_model, probe_model, loader, criterion, optimizer, logger, epoch):
-    probe_model.train()
-    for step, (board_repr, label) in enumerate(loader):
-        board_repr = board_repr.type(torch.FloatTensor)
-        board_repr = board_repr.cuda()
-        label = label.cuda()
-        feat = feat_model(board_repr).detach()
-        pred = probe_model(feat)
-        loss = criterion(pred, label)
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        if logger is not None:
-            logger.add_scalar('loss/train', loss.data.item(), step+epoch*len(loader))
-
-def test_epoch(feat_model, probe_model, loader, criterion, logger, epoch):
-    probe_model.eval()
-    test_set_loss = 0
-    for step, (board_repr, label) in enumerate(loader):
-        board_repr = board_repr.type(torch.FloatTensor)
-        board_repr = board_repr.cuda()
-        label = label.cuda()
-        feat = feat_model(board_repr).detach()
-        pred = probe_model(feat)
-        loss = criterion(pred, label)
-        test_set_loss += loss.data.item()
-    avg_loss = test_set_loss / len(loader)
-    if logger is not None:
-        logger.add_scalar('loss/test', avg_loss, epoch)
-    return avg_loss
+log_dir = 'experiments'
 
 def save_checkpoint(state, save_path):
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     torch.save(state, save_path)
 
+def load_from_ckpt(model, path):
+    ckpt = torch.load(path)
+    model.load_state_dict(ckpt['state_dict'])
+
 class ProbeExperiment:
 
-    def __init__(self, train_dataset, test_dataset, keywords):
-        self.train_dataset = train_dataset
-        self.test_dataset = test_dataset
+    def __init__(self, train_loader, test_loader, feat_model, keywords):
+        self.train_loader = train_loader
+        self.test_loader = test_loader
+        self.feat_model = feat_model
         self.keywords = keywords
 
-    def run(self, trial_name, feat_model, probe_model, configs):
+    def train_epoch(self, probe_model, criterion, optimizer, logger, epoch):
+        probe_model.train()
+        self.feat_model.eval()
+        for step, (board_repr, label) in enumerate(self.train_loader):
+            board_repr = board_repr.type(torch.FloatTensor)
+            board_repr = board_repr.cuda()
+            label = label.cuda()
+            feat = self.feat_model(board_repr).detach()
+            pred = probe_model(feat)
+            loss = criterion(pred, label)
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            if logger is not None:
+                logger.add_scalar('loss/train', loss.data.item(),
+                    step+epoch*len(self.train_loader))
 
-        log_dir = os.path.join('experiments', trial_name)
-        os.makedirs(log_dir, exist_ok=True)
-        logger = SummaryWriter(log_dir) if configs['write_log'] else None
+    def test_epoch(self, probe_model, criterion, logger, epoch):
+        probe_model.eval()
+        self.feat_model.eval()
+        cumulative_loss = 0
+        for step, (board_repr, label) in enumerate(self.test_loader):
+            board_repr = board_repr.type(torch.FloatTensor)
+            board_repr = board_repr.cuda()
+            label = label.cuda()
+            feat = self.feat_model(board_repr).detach()
+            pred = probe_model(feat)
+            loss = criterion(pred, label)
+            cumulative_loss += loss.data.item()
+        avg_loss = cumulative_loss / len(self.test_loader)
+        if logger is not None:
+            logger.add_scalar('loss/test', avg_loss, epoch)
+        return avg_loss
 
-        train_loader = DataLoader(self.train_dataset, batch_size=configs['batch_size'], shuffle=True)
-        test_loader = DataLoader(self.test_dataset, batch_size=configs['batch_size'], shuffle=False)
-
-        criterion = configs['criterion']
-        optimizer = configs['optimizer']
+    def run(self, probe_model, criterion, optimizer, num_epochs, configs):
+        trial_name = configs['name']
+        write_log = configs['write_log']
+        save_ckpt = configs['save_ckpt']
+        trial_dir = os.path.join(log_dir, trial_name)
+        os.makedirs(trial_dir, exist_ok=True)
+        logger = SummaryWriter(trial_dir) if write_log else None
 
         best_loss = 1e10
-        for epoch in range(configs['num_epochs']):
-
-            train_epoch(feat_model, probe_model, train_loader, criterion, optimizer, logger, epoch)
-            loss = test_epoch(feat_model, probe_model, test_loader, criterion, logger, epoch)
-
+        for epoch in range(num_epochs):
+            self.train_epoch(probe_model, criterion, optimizer, logger, epoch)
+            loss = self.test_epoch(probe_model, criterion, logger, epoch)
             if loss < best_loss:
                 best_loss = loss
                 print('[LOG] epoch %d loss %f, new best' % (epoch, loss))
@@ -72,28 +76,26 @@ class ProbeExperiment:
                     'epoch':epoch,
                     'state_dict':probe_model.state_dict(),
                     'optimizer':optimizer.state_dict()
-                    }, os.path.join(log_dir, 'best.ckpt'))
+                    }, os.path.join(trial_dir, 'best.ckpt'))
             else:
                 print('[LOG] epoch %d loss %f' % (epoch, loss))
-            if configs['save_ckpt']:
+            if save_ckpt:
                 save_checkpoint({
                     'epoch':epoch,
                     'state_dict':probe_model.state_dict(),
                     'optimizer':optimizer.state_dict()
-                    }, os.path.join(log_dir, 'epoch%d.ckpt' % epoch))
+                    }, os.path.join(trial_dir, 'epoch%d.ckpt' % epoch))
+        load_from_ckpt(probe_model, os.path.join(trial_dir, 'best.ckpt'))
 
-        best_ckpt = torch.load(os.path.join(log_dir, 'best.ckpt'))
-        probe_model.load_state_dict(best_ckpt['state_dict'])
-
-    def predict_labels(self, feat_model, probe_model, dataset, batch_size=512):
-        loader = DataLoader(dataset, batch_size, shuffle=False)
+    def get_test_predictions(self, probe_model, loader):
+        '''must fit into memory'''
         probe_model.eval()
-        feat_model.eval()
+        self.feat_model.eval()
         pred_ls, label_ls = [], []
         for step, (board_repr, label) in enumerate(loader):
             board_repr = board_repr.type(torch.FloatTensor)
             board_repr = board_repr.cuda()
-            feat = feat_model(board_repr).detach()
+            feat = self.feat_model(board_repr).detach()
             pred = probe_model(feat)
             pred_ls.append(pred.detach().cpu().numpy())
             label_ls.append(label.detach().numpy())
