@@ -7,39 +7,39 @@ import numpy as np
 
 import torch
 
-from util import suppress_stdout
-
 
 def collate(batch):
-    progress, inputs, labels = batch[0]
+    inputs, labels = batch[0]
     input_shape = inputs.shape
-    return progress, torch.cat([torch.FloatTensor(inputs), torch.ones((input_shape[0], 1, input_shape[2], input_shape[3]))], dim=1), torch.LongTensor(labels)
+    return torch.cat([torch.FloatTensor(inputs), torch.ones((input_shape[0], 1, input_shape[2], input_shape[3]))], dim=1), torch.LongTensor(labels)
 
 class Dataset:
-    def __init__(self, data_dir, train_files, batch_size, num_val_files=1000, num_test_files=1000, seed=0):
+    def __init__(self, label_name, data_dir, train_p, test_p, batch_size, seed=0):
         random.seed(seed)
         self.batch_size = batch_size
         self.data_dir = data_dir
         for root, _, files in os.walk(data_dir):
             filenames = [os.path.join(root, fname) for fname in files if 'features' in fname]
-        data_files = [(fname, fname.replace('features', 'labels')) for fname in filenames]
+        data_files = [(fname, fname.replace('features', label_name)) for fname in filenames]
         random.shuffle(data_files)
-        self.splits = {'val': data_files[:num_val_files], 'test': data_files[num_val_files:num_val_files+num_test_files], 'train': data_files[num_val_files+num_test_files:num_val_files+num_test_files+train_files]}
+        num_train_files = int(len(data_files) * train_p)
+        num_test_files = int(len(data_files) * test_p)
+        self.splits = {'test': data_files[:num_test_files], 'train': data_files[num_test_files:num_test_files+num_train_files]}
         print('done loading data')
         print('split sizes:')
-        for key in ['train', 'val', 'test']:
+        for key in ['train', 'test']:
             print(key, len(self.splits[key]))
 
     def shuffle(self, split, seed=None):
-        assert split in ['train', 'val', 'test']
+        assert split in ['train', 'test']
         if seed is not None:
             random.seed(seed)
         random.shuffle(self.splits[split])
 
 
-    def loader(self, split, max_ram_files=100, num_workers=20):
-        assert split in ['train', 'val', 'test']
-        return torch.utils.data.DataLoader(SplitLoader(self.splits[split], self.batch_size, max_ram_files), batch_size=1, pin_memory=True, collate_fn=collate, num_workers=num_workers) # just 1 worker since it should be super fast anyway
+    def loader(self, split, max_ram_files=50):
+        assert split in ['train', 'test']
+        return torch.utils.data.DataLoader(SplitLoader(self.splits[split], self.batch_size, max_ram_files), batch_size=1, pin_memory=True, collate_fn=collate) # just 1 worker since it should be super fast anyway
 
 
 class SplitLoader(torch.utils.data.IterableDataset):
@@ -86,4 +86,4 @@ class SplitLoader(torch.utils.data.IterableDataset):
         inputs, labels = self.loaded_inputs[self.pos:self.pos + self.batch_size], self.loaded_labels[self.pos:self.pos + self.batch_size]
         progress = self.prev_load_pos  # num files we've finished going through, not counting the current ones
         self.pos += self.batch_size
-        return progress, inputs, labels
+        return inputs, labels

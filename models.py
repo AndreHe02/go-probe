@@ -38,7 +38,7 @@ class CutModel(nn.Module):
         for i in range(self.cut):
             x = self.convs[i](x)
             x = self.nonlinear(x)
-        return nn.Flatten()(x)
+        return x #nn.Flatten()(x)
 
 def load_go_model_from_ckpt(path, rm_prefix=False):
     model = GoModel(None)
