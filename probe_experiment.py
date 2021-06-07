@@ -34,7 +34,7 @@ class ProbeExperiment:
             board_repr = board_repr.type(torch.FloatTensor)
             board_repr = board_repr.cuda()
             label = label.type(torch.FloatTensor).cuda()
-            feat = self.feat_model(board_repr).detach()
+            feat = self.feat_model(board_repr).detach()    
             pred = probe_model(feat)
             loss = criterion(pred, label)
             loss.backward()

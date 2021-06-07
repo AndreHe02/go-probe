@@ -29,7 +29,9 @@ class SPBoWDataset(Dataset):
             elif 'W' in move_name:
                 game.board.place_stone(Player.white, Point(row+1, col+1))
         encoder = SevenPlaneEncoder((19, 19))
-        return encoder.encode(game)
+        svp = encoder.encode(game)
+        ones = np.ones((1, 19, 19))
+        return np.concatenate((svp, ones), axis=0)
     
     def get_bag_of_words(self, comment):
         comment = comment.lower()
