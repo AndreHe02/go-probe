@@ -512,7 +512,7 @@ def cuts(own, opp):
 class CutProcessor(SevenPlaneProcessor):
 
     def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
-        super(OppWallProcessor, self).__init__(data_directory=data_directory,
+        super(CutProcessor, self).__init__(data_directory=data_directory,
                                                   num_planes=num_planes,
                                                   consolidate=consolidate,
                                                   use_generator=use_generator)
@@ -523,6 +523,6 @@ class CutProcessor(SevenPlaneProcessor):
         move_array, label = super().feature_and_label(color, move, go_board, num_planes)
         own = np.sum(move_array[0:3], axis=0)
         opp = np.sum(move_array[3:6], axis=0)
-        cuts(own, opp)
+        label_array = cuts(own, opp)
 
         return move_array, label_array
