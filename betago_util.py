@@ -14,7 +14,7 @@ from handcrafted_ft_processors import *
 
 if __name__=='__main__':
     data_dir = 'C:/Users/andre/go-ai/data'
-    processor = CutProcessor(data_directory=data_dir)
+    processor = LadderProcessor(data_directory=data_dir)
     for root, _, files in os.walk(data_dir):
         filenames = [fname for fname in files if fname.endswith('tar.gz')]
         for filename in filenames:

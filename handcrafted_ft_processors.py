@@ -526,3 +526,107 @@ class CutProcessor(SevenPlaneProcessor):
         label_array = cuts(own, opp)
 
         return move_array, label_array
+
+def in_grid(i, j):
+    return 0<=i<19 and 0<=j<19
+
+def ladders(svp):
+    own = np.sum(svp[0:3], axis=0)
+    opp = np.sum(svp[3:6], axis=0)
+    ft = np.zeros((2, 19, 19))
+    for i in range(1, 18):
+        for j in range(1, 18):
+            if own[i][j] or opp[i][j]:
+                continue
+            continues_ladder = False
+            libs = 0
+            owns = 0
+            adjs = ((i-1, j), (i+1, j), (i, j-1), (i, j+1))
+            for r, c in adjs:
+                if not in_grid(r, c):
+                    continue
+                if not own[r][c] and not opp[r][c]:
+                    libs += 1
+                if own[r][c]:
+                    owns += 1
+                if svp[0][r][c]:
+                    continues_ladder = True
+            if continues_ladder and libs == 2 and owns==1:
+                ft[0][i][j] = 1
+                if ladder_breaks(svp, i, j):
+                    ft[1][i][j] = 1
+    return ft
+
+def zigzag(own, opp, i, j, step1, step2):
+    r, c = i, j
+    s = 1
+    step = step2
+    otherstep = step1
+    while in_grid(r, c):
+        if opp[r][c]:
+            return False
+        if own[r][c]:
+            return True
+        if not in_grid(r+step[0], c+step[1]) or opp[r+step[0]][c+step[1]]:
+            return False
+        if in_grid(r+step[0], c+step[1]) and own[r+step[0]][c+step[1]]:
+            return True
+        #cutting ladder breaker
+        if in_grid(r+step[0]-otherstep[0], c+step[1]-otherstep[1]) and own[r+step[0]-otherstep[0]][c+step[1]-otherstep[1]]:
+            if not in_grid(r-2*otherstep[0], c-2*otherstep[1]) or not opp[r-2*otherstep[0]][c-2*otherstep[1]]:
+                return True
+        if s % 2 == 0:
+            step = step1
+            otherstep = step2
+        else:
+            step = step2
+            otherstep = step1
+        r += step[0]
+        c += step[1]
+        s += 1
+    return False
+
+def ladder_breaks(svp, i, j):
+    own = np.sum(svp[0:3], axis=0)
+    opp = np.sum(svp[3:6], axis=0)
+
+    #in grid
+    if in_grid(i-1, j) and own[i-1][j]:
+        step1 = (1, 0)
+    elif in_grid(i+1, j) and own[i+1][j]:
+        step1 = (-1, 0)
+    elif in_grid(i, j-1) and own[i][j-1]:
+        step1 = (0, 1)
+    elif in_grid(i, j+1) and own[i][j+1]:
+        step1 = (0, -1)
+
+    if not in_grid(i-1, j) or opp[i-1][j]:
+        step2 = (1, 0)
+    elif not in_grid(i+1, j) or opp[i+1][j]:
+        step2 = (-1, 0)
+    elif not in_grid(i, j-1) or opp[i][j-1]:
+        step2 = (0, 1)
+    elif not in_grid(i, j+1) or opp[i][j+1]:
+        step2 = (0, -1)
+
+    #special case where you can zigzag both ways
+    if step1[0] == -step2[0] and step1[1] == -step2[1]:
+        zz1 = zigzag(own, opp, i, j, step1, (step1[1], step1[0]))
+        zz2 = zigzag(own, opp, i, j, step1, (-step1[1], -step1[0]))
+        return zz1 or zz2
+    else:
+        return zigzag(own, opp, i, j, step1, step2)
+
+class LadderProcessor(SevenPlaneProcessor):
+    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+        super(LadderProcessor, self).__init__(data_directory=data_directory,
+                                                  num_planes=num_planes,
+                                                  consolidate=consolidate,
+                                                  use_generator=use_generator)
+        self.label_name = 'ladders'
+        self.label_shape = (2, 19, 19)
+
+    def feature_and_label(self, color, move, go_board, num_planes):
+        move_array, label = super().feature_and_label(color, move, go_board, num_planes)
+        label_array = ladders(move_array)
+        return move_array, label_array
