@@ -47,6 +47,5 @@ def draw_go_board(b_board, w_board, feat):
                 
     for r in range(19):
         for c in range(19):
-            if feat[r][c]:
-                ax.plot(r, c, 'X', markersize=10, markerfacecolor='r')
+            ax.plot(r, c, 'X', markersize=feat[r][c], markerfacecolor='r')
     return ax

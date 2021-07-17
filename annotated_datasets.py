@@ -2,6 +2,9 @@ import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from io_utils import *
+import os
+import random
+import torch
 
 def get_annotated_dataset(annotations, feature_func, label_func):
     if isinstance(annotations, str):
@@ -9,12 +12,14 @@ def get_annotated_dataset(annotations, feature_func, label_func):
     return [(feature_func(ant), label_func(ant)) for ant in annotations]
 
 import os
-def save_dataset(dataset, path, bucket_size=1000):
+def save_dataset(annotations, feature_func, label_func, path, bucket_size=1000):
+    if isinstance(annotations, str):
+        ants = read_pkl(annotations)
     ft_file = "features_%d.npy"
     lbl_file = "labels_%d.npy"
-    for bkt in range((len(dataset)-1) // bucket_size + 1):
-        features = np.stack(ft for ft, _ in dataset[bkt*bucket_size:(bkt+1)*bucket_size])
-        labels = np.stack(lbl for _, lbl in dataset[bkt*bucket_size:(bkt+1)*bucket_size])
+    for bkt in range((len(ants)-1) // bucket_size + 1):
+        features = np.stack(feature_func(ant) for ant in ants[bkt*bucket_size:(bkt+1)*bucket_size])
+        labels = np.stack(label_func(ant) for ant in ants[bkt*bucket_size:(bkt+1)*bucket_size])
         np.save(os.path.join(path, ft_file % bkt), features)
         np.save(os.path.join(path, lbl_file % bkt), labels)
 
@@ -103,8 +108,39 @@ def make_bag_of_words(keywords):
         return label
     return bag_of_words
 
+import re
+def better_bag_of_words(words):
+    def bow(ant):
+        nonlocal words
+        cmt = ant['comments']
+        cmt = cmt.lower()
+        label = np.zeros(len(words))
+        for word in re.sub('[^A-Za-z0-9 ]+', '', cmt.lower()).split(' '):
+            if word in words:
+                label[words.index(word)] = 1
+        return label
+    return bow
+
 def get_bow_dataset(annotations, keywords):
     return get_annotated_dataset(annotations, seven_planes, make_bag_of_words(keywords))
 
 def get_bow_dataset_for_elf(annotations, keywords):
     return get_annotated_dataset(annotations, AGZ_features, make_bag_of_words(keywords))
+
+def elf_data_loader(path, batch_size, shuffle=False):
+    fnames = [f for f in os.listdir(path) if 'features' in f]
+    if shuffle:
+        random.shuffle(fnames)
+
+    def batch_generator(batch_size):
+        for fname in fnames:
+            features = np.load(os.path.join(path, fname))
+            labels = np.load(os.path.join(path, fname.replace('features', 'labels')))
+            for bkt in range(len(features) // batch_size):
+                X, y = features[bkt*batch_size:(bkt+1)*batch_size], \
+                    labels[bkt*batch_size:(bkt+1)*batch_size]
+                X = torch.from_numpy(X).type(torch.FloatTensor)
+                y = torch.from_numpy(y).type(torch.FloatTensor)
+                yield X, y
+
+    return batch_generator(batch_size)
