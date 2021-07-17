@@ -4,8 +4,8 @@ def read_pkl(filename, mode='rb'):
     with open(filename, mode) as f:
         return pkl.load(f)
 
-def write_pkl(filename, obj, mode='wb'):
+def write_pkl(obj, filename, mode='wb'):
     with open(filename, mode) as f:
-        pkl.dump(f, obj)
+        pkl.dump(obj, f)
 
         

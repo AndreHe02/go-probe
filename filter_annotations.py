@@ -2,7 +2,7 @@ from betago.dataloader.goboard import GoBoard
 from tqdm import tqdm
 import pickle as pkl
 
-def filter_annotations(ants, condition):
+def filter_annotations(ants):
     '''
     Samples with wrong board sizes, invalid move sequences, or empty boards are removed.
     We also skip all samples with the "Add Empty" action in their move sequences. 
@@ -34,7 +34,7 @@ def filter_annotations(ants, condition):
             continue
         try:
             go_board = get_board_state(ant['sgf'])
-        except ValueError as e:
+        except Exception as e:
             skipped['moves'] += 1
             continue
         if not go_board.board or not ('W' in ant['sgf'] or 'B' in ant['sgf']):

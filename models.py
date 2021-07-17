@@ -27,18 +27,13 @@ class GoModel(nn.Module):
         x = self.output_linear(x.flatten(1))
         return x # batch x NB_CLASSES (361) of scores
 
-class CutModel(nn.Module):
-    def __init__(self, model, cut):
-        super(CutModel, self).__init__()
-        self.convs = model.convs[:cut]
-        self.nonlinear = model.nonlinear
-        self.cut = cut
-
-    def forward(self, x):
-        for i in range(self.cut):
+    def forward_layer_outputs(self, x):
+        layer_outputs = [x]
+        for i in range(len(self.convs)):
             x = self.convs[i](x)
             x = self.nonlinear(x)
-        return x #nn.Flatten()(x)
+            layer_outputs.append(x.detach())
+        return layer_outputs
 
 def load_go_model_from_ckpt(path, rm_prefix=False):
     model = GoModel(None)

@@ -13,7 +13,50 @@ def collate(batch):
     input_shape = inputs.shape
     return torch.cat([torch.FloatTensor(inputs), torch.ones((input_shape[0], 1, input_shape[2], input_shape[3]))], dim=1), torch.LongTensor(labels)
 
+class DummyDataset:
+    def __init__(self, train_split, test_split, batch_size):
+        self.splits = {}
+        self.splits['train'] = train_split
+        self.splits['test'] = test_split
+        self.batch_size = batch_size
+
+    def shuffle(self, split, seed=None):
+        assert split in ['train', 'test']
+        if seed is not None:
+            random.seed(seed)
+        random.shuffle(self.splits[split])
+
+    def loader(self, split, max_ram_files=50, num_workers=0):
+        assert split in ['train', 'test']
+        return torch.utils.data.DataLoader(SplitLoader(self.splits[split], self.batch_size, max_ram_files), batch_size=1, pin_memory=True, collate_fn=collate,  num_workers=num_workers) # just 1 worker since it should be super fast anyway
+
+
+class CrossValDataset:
+
+    def __init__(self, label_name, data_dir, n_fold, batch_size, seed=0):
+        random.seed(seed)
+        self.batch_size = batch_size
+        self.data_dir = data_dir
+        for root, _, files in os.walk(data_dir):
+            filenames = [os.path.join(root, fname) for fname in files if 'features' in fname]
+
+            #edit this to parallelize features
+        data_files = [(fname, fname.replace('features', label_name)) for fname in filenames]
+        random.shuffle(data_files)
+
+        self.data_files = data_files
+        self.n_fold = n_fold
+
+    def train_val_split(self, val_idx):
+        start = int(len(self.data_files) * val_idx / self.n_fold)
+        end = int(len(self.data_files) * (val_idx+1) / self.n_fold)
+        test_split = self.data_files[start:end]
+        train_split = self.data_files[:start] + self.data_files[end:]
+        return DummyDataset(train_split, test_split, self.batch_size)
+
+
 class Dataset:
+
     def __init__(self, label_name, data_dir, train_p, test_p, batch_size, seed=0):
         random.seed(seed)
         self.batch_size = batch_size
@@ -21,7 +64,9 @@ class Dataset:
         for root, _, files in os.walk(data_dir):
             filenames = [os.path.join(root, fname) for fname in files if 'features' in fname]
         data_files = [(fname, fname.replace('features', label_name)) for fname in filenames]
+
         random.shuffle(data_files)
+
         num_train_files = int(len(data_files) * train_p)
         num_test_files = int(len(data_files) * test_p)
         self.splits = {'test': data_files[:num_test_files], 'train': data_files[num_test_files:num_test_files+num_train_files]}
@@ -37,9 +82,9 @@ class Dataset:
         random.shuffle(self.splits[split])
 
 
-    def loader(self, split, max_ram_files=50):
+    def loader(self, split, max_ram_files=50, num_workers=0):
         assert split in ['train', 'test']
-        return torch.utils.data.DataLoader(SplitLoader(self.splits[split], self.batch_size, max_ram_files), batch_size=1, pin_memory=True, collate_fn=collate) # just 1 worker since it should be super fast anyway
+        return torch.utils.data.DataLoader(SplitLoader(self.splits[split], self.batch_size, max_ram_files), batch_size=1, pin_memory=True, collate_fn=collate,  num_workers=num_workers) # just 1 worker since it should be super fast anyway
 
 
 class SplitLoader(torch.utils.data.IterableDataset):
