@@ -630,3 +630,14 @@ class LadderProcessor(SevenPlaneProcessor):
         move_array, label = super().feature_and_label(color, move, go_board, num_planes)
         label_array = ladders(move_array)
         return move_array, label_array
+
+
+if __name__=='__main__':
+    data_dir = 'C:/Users/andre/go-ai/data'
+    processor = LadderProcessor(data_directory=data_dir)
+    for root, _, files in os.walk(data_dir):
+        filenames = [fname for fname in files if fname.endswith('tar.gz')]
+        for filename in filenames:
+            if filename.endswith('tar.gz'):
+                print(filename)
+                processor.process_zip_full(root, filename, filename.split('.')[0]+'preprocessed', write_fts=False)
