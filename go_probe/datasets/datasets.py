@@ -10,8 +10,7 @@ import torch
 
 def collate(batch):
     inputs, labels = batch[0]
-    input_shape = inputs.shape
-    return torch.cat([torch.FloatTensor(inputs), torch.ones((input_shape[0], 1, input_shape[2], input_shape[3]))], dim=1), torch.LongTensor(labels)
+    return torch.FloatTensor(inputs), torch.LongTensor(labels)
 
 class DefaultDataset:
 
@@ -43,6 +42,7 @@ class DefaultDataset:
     def loader(self, split, max_ram_files=50, num_workers=0):
         assert split in ['train', 'test']
         return torch.utils.data.DataLoader(SplitLoader(self.splits[split], self.batch_size, max_ram_files), batch_size=1, pin_memory=True, collate_fn=collate,  num_workers=num_workers) # just 1 worker since it should be super fast anyway
+
 
 
 class CrossValDataset:

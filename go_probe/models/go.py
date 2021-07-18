@@ -35,7 +35,7 @@ class GoModel(nn.Module):
             layer_outputs.append(x.detach())
         return layer_outputs
 
-def load_go_model(path, rm_prefix=False):
+def load_go_model(path, rm_prefix=True):
     model = GoModel(None)
     checkpoint = torch.load(path, map_location=torch.device('cuda'))
     state_dict = checkpoint['state_dict']

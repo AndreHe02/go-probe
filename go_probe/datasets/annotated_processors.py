@@ -148,6 +148,9 @@ def disk_data_loader(path, batch_size, shuffle=False):
 if __name__ == "__main__":
     annotations = read_pkl('C:/users/andre/documents/data/go/annotated/annotations_filtered.pkl')
     go_dict = read_pkl('C:/users/andre/documents/data/go/annotated/sorted_go_dict.pkl')
+    control_words = read_pkl('C:/users/andre/documents/data/go/annotated/control_words.pkl')
     keywords = go_dict[:30]
-    write_dataset(annotations, seven_planes, better_bag_of_words(keywords), 'C:/users/andre/documents/data/go/annotated/go_bow/')
-    write_dataset(annotations, AGZ_features, better_bag_of_words(keywords), 'C:/users/andre/documents/data/go/annotated/elf_bow/')
+    controls = control_words[:30]
+    words = keywords + controls
+    write_dataset(annotations, seven_planes, better_bag_of_words(words), 'C:/users/andre/documents/data/go/annotated/go_bow/')
+    write_dataset(annotations, AGZ_features, better_bag_of_words(words), 'C:/users/andre/documents/data/go/annotated/elf_bow/')

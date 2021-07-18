@@ -511,6 +511,7 @@ class CollatedProcessor(SevenPlaneProcessor):
             _, label_ = processor.feature_and_label(color, move, go_board, num_planes)
             if np.any(label_):
                 label[i] = 1
+        move_array = np.concatenate([move_array, np.ones((1, 19, 19))], axis=0)
         return move_array, label
 
 if __name__=='__main__':

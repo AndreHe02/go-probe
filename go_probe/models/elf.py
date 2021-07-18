@@ -394,6 +394,14 @@ class Model_PolicyValue(Model):
 
         return dict(logpi=logpi, pi=pi, V=V)
 
+    def forward_to_resnet(self, x):
+        s = x
+
+        s = self.init_conv(s)
+        s = self.resnet(s)
+
+        return [s.detach()]
+
 class DefaultModelOptions:
     leaky_relu = False
     dim = 256
