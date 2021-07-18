@@ -1,9 +1,7 @@
 .ipynb_checkpoints
 __pycache__
 experiments
-checkpoints
-data
-elf
-metrics
+results
 notebooks
 *.bin
+.vscode
