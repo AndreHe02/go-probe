@@ -427,3 +427,4 @@ def load_elf_model(path):
         omit_keys=[],
         replace_prefix=replace_prefix,
         check_loaded_options=False)
+    return model

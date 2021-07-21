@@ -484,8 +484,8 @@ class LadderProcessor(SevenPlaneProcessor):
                         continues_ladder = True
                 if continues_ladder and libs == 2 and owns==1:
                     ft[i][j] = 1
-                    if ladder_breaks(svp, i, j):
-                        ft[i][j] = 2
+                    #if ladder_breaks(svp, i, j):
+                    #    ft[i][j] = 1
         return ft
 
     def feature_and_label(self, color, move, go_board, num_planes):
