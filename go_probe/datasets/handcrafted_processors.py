@@ -1,6 +1,10 @@
 import numpy as np
 from betago.processor import SevenPlaneProcessor
 import os
+import gzip
+import shutil
+import tarfile
+from tqdm import tqdm
 
 class EyeProcessor(SevenPlaneProcessor):
 
@@ -79,9 +83,6 @@ class LastMoveProcessor(SevenPlaneProcessor):
 
     def process_zip_full(self, dir_name, zip_file_name, data_file_name):
         # Read zipped file and extract name list
-        import gzip
-        import shutil
-        import tarfile
         this_gz = gzip.open(dir_name + '/' + zip_file_name)
         this_tar_file = zip_file_name[0:-3]
         this_tar = open(dir_name + '/' + this_tar_file, 'wb')
@@ -221,9 +222,6 @@ class ResultProcessor(SevenPlaneProcessor):
         self.label_shape = ()
 
     def process_zip_full(self, dir_name, zip_file_name, data_file_name, write_fts=True):
-        import gzip
-        import shutil
-        import tarfile
         # Read zipped file and extract name list
         this_gz = gzip.open(dir_name + '/' + zip_file_name)
         this_tar_file = zip_file_name[0:-3]
@@ -514,6 +512,90 @@ class CollatedProcessor(SevenPlaneProcessor):
         move_array = np.concatenate([move_array, np.ones((1, 19, 19))], axis=0)
         return move_array, label
 
+class ELFFeatureProcessor(SevenPlaneProcessor):
+
+    def __init__(self, processor_cls, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+        super(ELFFeatureProcessor, self).__init__(data_directory=data_directory,
+                                                  num_planes=num_planes,
+                                                  consolidate=consolidate,
+                                                  use_generator=use_generator)
+        self.label_name = 'elf'
+        self.label_shape = (18, 19, 19)
+
+    def process_zip_full(self, dir_name, zip_file_name, data_file_name, write_fts=True):
+        # Read zipped file and extract name list
+        this_gz = gzip.open(dir_name + '/' + zip_file_name)
+        this_tar_file = zip_file_name[0:-3]
+        this_tar = open(dir_name + '/' + this_tar_file, 'wb')
+        shutil.copyfileobj(this_gz, this_tar)  # random access needed to tar
+        this_tar.close()
+        this_zip = tarfile.open(dir_name + '/' + this_tar_file)
+        name_list = this_zip.getnames()[1:]
+        name_list.sort()
+
+        # Determine number of examples
+        total_examples = self.num_total_examples_full(this_zip, name_list)
+
+        chunksize = 8096
+        if write_fts:
+            features = np.zeros((chunksize, self.num_planes, 19, 19))
+        labels = np.zeros((chunksize, *self.label_shape))
+
+        counter = 0
+        chunk = 0
+
+        feature_file_base = dir_name + '/' + data_file_name + '_features_%d'
+        label_file_base = dir_name + '/' + data_file_name + '_' + self.label_name + '_%d'
+
+        board_history = []
+
+        for name in tqdm(name_list):
+            board_history = []
+            if name.endswith('.sgf'):
+                '''
+                Load Go board and determine handicap of game, then iterate through all moves,
+                store preprocessed move in data_file and apply move to board.
+                '''
+                sgf_content = this_zip.extractfile(name).read()
+                sgf, go_board_no_handy = self.init_go_board(sgf_content)
+                go_board, first_move_done = self.get_handicap(go_board_no_handy, sgf)
+                first_move_done = False
+
+                for item in sgf.main_sequence_iter():
+                    color, move = item.get_move()
+                    if color is not None and move is not None:
+                        row, col = move
+
+                        if first_move_done:
+                            X_, y_ = super().feature_and_label(color, move, go_board, self.num_planes, board_history)
+                            board_history.append(X_)
+                            if len(board_history) > 8:
+                                board_history = board_history[-8:]
+                            X, y = self.feature_and_label(board_history)
+                            if write_fts:
+                                features[counter%chunksize] = X
+                            labels[counter%chunksize] = y
+                            counter += 1
+
+                            if counter % chunksize == 0:
+                                feature_file = feature_file_base % chunk
+                                label_file = label_file_base % chunk
+                                chunk += 1
+                                if write_fts:
+                                    np.save(feature_file, features)
+                                np.save(label_file, labels)
+
+
+                        go_board.apply_move(color, (row, col))
+                        first_move_done = True
+            else:
+                raise ValueError(name + ' is not a valid sgf')
+
+    def feature_and_label(board_history):
+        agz = np.zeros((18, 19, 19))
+        
+
+        
 if __name__=='__main__':
     data_dir = 'C:/Users/andre/documents/data/go/raw'
     processor = CollatedProcessor([EyeProcessor, WallProcessor, SurroundProcessor,

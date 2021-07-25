@@ -5,3 +5,5 @@ results
 notebooks
 *.bin
 .vscode
+graphs.ipynb
+word_probe_metrics_ELF.pkl

@@ -250,6 +250,13 @@ class GoResNet(Model):
     def forward(self, s):
         return self.resnet(s)
 
+    def layer_output_generator(self, s):
+        x = s
+        for block in self.blocks:
+            x = block(x)
+            yield x.detach()
+
+
 
 class Model_PolicyValue(Model):
 
@@ -402,6 +409,12 @@ class Model_PolicyValue(Model):
 
         return [s.detach()]
 
+    def resnet_layer_output_generator(self, x):
+        # so that we don't store every layer in memory
+        s = x
+        s = self.init_conv(s)
+        yield from self.resnet.layer_output_generator(s)
+
 class DefaultModelOptions:
     leaky_relu = False
     dim = 256
@@ -428,3 +441,4 @@ def load_elf_model(path):
         replace_prefix=replace_prefix,
         check_loaded_options=False)
     return model
+
