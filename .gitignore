@@ -1,9 +1,11 @@
 .ipynb_checkpoints
 __pycache__
-experiments
 results
 notebooks
 *.bin
 .vscode
 graphs.ipynb
-word_probe_metrics_ELF.pkl
+go_model_weights.tar
+elf_model_weights.bin
+
+
