@@ -1,3 +1,4 @@
+from go_probe.datasets.annotated_processors import AGZ_features
 import numpy as np
 from betago.processor import SevenPlaneProcessor
 import os
@@ -71,77 +72,6 @@ class WallProcessor(SevenPlaneProcessor):
                     label_array[r][c] = 1
         return move_array, label_array
 
-class LastMoveProcessor(SevenPlaneProcessor):
-
-    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
-        super(LastMoveProcessor, self).__init__(data_directory=data_directory,
-                                                  num_planes=num_planes,
-                                                  consolidate=consolidate,
-                                                  use_generator=use_generator)
-        self.label_name = 'last_move'
-        self.label_shape = ()
-
-    def process_zip_full(self, dir_name, zip_file_name, data_file_name):
-        # Read zipped file and extract name list
-        this_gz = gzip.open(dir_name + '/' + zip_file_name)
-        this_tar_file = zip_file_name[0:-3]
-        this_tar = open(dir_name + '/' + this_tar_file, 'wb')
-        shutil.copyfileobj(this_gz, this_tar)  # random access needed to tar
-        this_tar.close()
-        this_zip = tarfile.open(dir_name + '/' + this_tar_file)
-        name_list = this_zip.getnames()[1:]
-        name_list.sort()
-
-        # Determine number of examples
-        total_examples = self.num_total_examples_full(this_zip, name_list)
-
-        chunksize = 1024
-        features = np.zeros((chunksize, self.num_planes, 19, 19))
-        labels = np.zeros((chunksize, *self.label_shape))
-
-        counter = 0
-        chunk = 0
-
-        feature_file_base = dir_name + '/' + data_file_name + '_features_%d'
-        label_file_base = dir_name + '/' + data_file_name + '_' + self.label_name + '_%d'
-
-        for name in name_list:
-            if name.endswith('.sgf'):
-                '''
-                Load Go board and determine handicap of game, then iterate through all moves,
-                store preprocessed move in data_file and apply move to board.
-                '''
-                sgf_content = this_zip.extractfile(name).read()
-                sgf, go_board_no_handy = self.init_go_board(sgf_content)
-                go_board, first_move_done = self.get_handicap(go_board_no_handy, sgf)
-                first_move_done = False
-
-                prev_move = None
-
-                for item in sgf.main_sequence_iter():
-                    color, move = item.get_move()
-
-                    if color is not None and move is not None:
-                        row, col = move
-                        if first_move_done:
-                            X, y = self.feature_and_label(color, prev_move, go_board, self.num_planes)
-                            features[counter%chunksize] = X
-                            labels[counter%chunksize] = y
-                            counter += 1
-
-                            if counter % chunksize == 0:
-                                feature_file = feature_file_base % chunk
-                                label_file = label_file_base % chunk
-                                chunk += 1
-                                np.save(feature_file, features)
-                                np.save(label_file, labels)
-
-                        go_board.apply_move(color, (row, col))
-                        first_move_done = True
-                        prev_move = move
-            else:
-                raise ValueError(name + ' is not a valid sgf')
-
 class SurroundProcessor(SevenPlaneProcessor):
 
     def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
@@ -194,107 +124,6 @@ class SurroundProcessor(SevenPlaneProcessor):
         opp = np.sum(move_array[3:6], axis=0)
         label_array = SurroundProcessor.mark_surrounded(own, opp)
         return move_array, label_array
-
-class RankProcessor(SevenPlaneProcessor):
-
-    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
-        super(RankProcessor, self).__init__(data_directory=data_directory,
-                                                  num_planes=num_planes,
-                                                  consolidate=consolidate,
-                                                  use_generator=use_generator)
-        self.label_name = 'rank'
-        self.label_shape = ()
-
-    def feature_and_label(self, color, move, go_board, num_planes):
-        move_array, label = super().feature_and_label(color, move, go_board, num_planes)
-        #white is higher rank
-        label = int(color == 'w')
-        return move_array, label
-
-class ResultProcessor(SevenPlaneProcessor):
-
-    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
-        super(ResultProcessor, self).__init__(data_directory=data_directory,
-                                                  num_planes=num_planes,
-                                                  consolidate=consolidate,
-                                                  use_generator=use_generator)
-        self.label_name = 'result'
-        self.label_shape = ()
-
-    def process_zip_full(self, dir_name, zip_file_name, data_file_name, write_fts=True):
-        # Read zipped file and extract name list
-        this_gz = gzip.open(dir_name + '/' + zip_file_name)
-        this_tar_file = zip_file_name[0:-3]
-        this_tar = open(dir_name + '/' + this_tar_file, 'wb')
-        shutil.copyfileobj(this_gz, this_tar)  # random access needed to tar
-        this_tar.close()
-        this_zip = tarfile.open(dir_name + '/' + this_tar_file)
-        name_list = this_zip.getnames()[1:]
-        name_list.sort()
-
-        # Determine number of examples
-        total_examples = self.num_total_examples_full(this_zip, name_list)
-
-        chunksize = 1024
-        if write_fts:
-            features = np.zeros((chunksize, self.num_planes, 19, 19))
-        labels = np.zeros((chunksize, *self.label_shape))
-
-        counter = 0
-        chunk = 0
-
-        feature_file_base = dir_name + '/' + data_file_name + '_features_%d'
-        label_file_base = dir_name + '/' + data_file_name + '_' + self.label_name + '_%d'
-
-        for name in name_list:
-            if name.endswith('.sgf'):
-                '''
-                Load Go board and determine handicap of game, then iterate through all moves,
-                store preprocessed move in data_file and apply move to board.
-                '''
-                sgf_content = this_zip.extractfile(name).read()
-                if b'RE[' in sgf_content:
-                    re_idx = sgf_content.index(b'RE[')
-                    end = sgf_content.find(b']', re_idx)
-                    if b'W' in sgf_content[re_idx:end]:
-                        label = 0
-                    elif b'B' in sgf_content[re_idx:end]:
-                        label = 1
-                else:
-                    label = 0
-
-                sgf, go_board_no_handy = self.init_go_board(sgf_content)
-                go_board, first_move_done = self.get_handicap(go_board_no_handy, sgf)
-                first_move_done = False
-
-                for item in sgf.main_sequence_iter():
-                    color, move = item.get_move()
-                    if color is not None and move is not None:
-                        row, col = move
-                        if first_move_done:
-                            X, _ = self.feature_and_label(color, move, go_board, self.num_planes)
-                            if write_fts:
-                                features[counter%chunksize] = X
-                            if color == 'b':
-                                y = label
-                            else:
-                                y = 1 - label
-                            labels[counter%chunksize] = y
-                            counter += 1
-
-                            if counter % chunksize == 0:
-                                feature_file = feature_file_base % chunk
-                                label_file = label_file_base % chunk
-                                chunk += 1
-                                if write_fts:
-                                    np.save(feature_file, features)
-                                np.save(label_file, labels)
-
-
-                        go_board.apply_move(color, (row, col))
-                        first_move_done = True
-            else:
-                raise ValueError(name + ' is not a valid sgf')
 
 class CapturedProcessor(SevenPlaneProcessor):
 
@@ -491,14 +320,188 @@ class LadderProcessor(SevenPlaneProcessor):
         label_array = LadderProcessor.ladders(move_array)
         return move_array, label_array
 
+
+class RankProcessor(SevenPlaneProcessor):
+
+    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+        super(RankProcessor, self).__init__(data_directory=data_directory,
+                                                  num_planes=num_planes,
+                                                  consolidate=consolidate,
+                                                  use_generator=use_generator)
+        self.label_name = 'rank'
+        self.label_shape = ()
+
+    def feature_and_label(self, color, move, go_board, num_planes):
+        move_array, label = super().feature_and_label(color, move, go_board, num_planes)
+        #white is higher rank
+        label = int(color == 'w')
+        return move_array, label
+
+class ResultProcessor(SevenPlaneProcessor):
+
+    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+        super(ResultProcessor, self).__init__(data_directory=data_directory,
+                                                  num_planes=num_planes,
+                                                  consolidate=consolidate,
+                                                  use_generator=use_generator)
+        self.label_name = 'result'
+        self.label_shape = ()
+
+    def process_zip_full(self, dir_name, zip_file_name, data_file_name, write_fts=True):
+        # Read zipped file and extract name list
+        this_gz = gzip.open(dir_name + '/' + zip_file_name)
+        this_tar_file = zip_file_name[0:-3]
+        this_tar = open(dir_name + '/' + this_tar_file, 'wb')
+        shutil.copyfileobj(this_gz, this_tar)  # random access needed to tar
+        this_tar.close()
+        this_zip = tarfile.open(dir_name + '/' + this_tar_file)
+        name_list = this_zip.getnames()[1:]
+        name_list.sort()
+
+        # Determine number of examples
+        total_examples = self.num_total_examples_full(this_zip, name_list)
+
+        chunksize = 1024
+        if write_fts:
+            features = np.zeros((chunksize, self.num_planes, 19, 19))
+        labels = np.zeros((chunksize, *self.label_shape))
+
+        counter = 0
+        chunk = 0
+
+        feature_file_base = dir_name + '/' + data_file_name + '_features_%d'
+        label_file_base = dir_name + '/' + data_file_name + '_' + self.label_name + '_%d'
+
+        for name in name_list:
+            if name.endswith('.sgf'):
+                '''
+                Load Go board and determine handicap of game, then iterate through all moves,
+                store preprocessed move in data_file and apply move to board.
+                '''
+                sgf_content = this_zip.extractfile(name).read()
+                if b'RE[' in sgf_content:
+                    re_idx = sgf_content.index(b'RE[')
+                    end = sgf_content.find(b']', re_idx)
+                    if b'W' in sgf_content[re_idx:end]:
+                        label = 0
+                    elif b'B' in sgf_content[re_idx:end]:
+                        label = 1
+                else:
+                    label = 0
+
+                sgf, go_board_no_handy = self.init_go_board(sgf_content)
+                go_board, first_move_done = self.get_handicap(go_board_no_handy, sgf)
+                first_move_done = False
+
+                for item in sgf.main_sequence_iter():
+                    color, move = item.get_move()
+                    if color is not None and move is not None:
+                        row, col = move
+                        if first_move_done:
+                            X, _ = self.feature_and_label(color, move, go_board, self.num_planes)
+                            if write_fts:
+                                features[counter%chunksize] = X
+                            if color == 'b':
+                                y = label
+                            else:
+                                y = 1 - label
+                            labels[counter%chunksize] = y
+                            counter += 1
+
+                            if counter % chunksize == 0:
+                                feature_file = feature_file_base % chunk
+                                label_file = label_file_base % chunk
+                                chunk += 1
+                                if write_fts:
+                                    np.save(feature_file, features)
+                                np.save(label_file, labels)
+
+
+                        go_board.apply_move(color, (row, col))
+                        first_move_done = True
+            else:
+                raise ValueError(name + ' is not a valid sgf')
+
+class LastMoveProcessor(SevenPlaneProcessor):
+
+    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+        super(LastMoveProcessor, self).__init__(data_directory=data_directory,
+                                                  num_planes=num_planes,
+                                                  consolidate=consolidate,
+                                                  use_generator=use_generator)
+        self.label_name = 'last_move'
+        self.label_shape = ()
+
+    def process_zip_full(self, dir_name, zip_file_name, data_file_name):
+        # Read zipped file and extract name list
+        this_gz = gzip.open(dir_name + '/' + zip_file_name)
+        this_tar_file = zip_file_name[0:-3]
+        this_tar = open(dir_name + '/' + this_tar_file, 'wb')
+        shutil.copyfileobj(this_gz, this_tar)  # random access needed to tar
+        this_tar.close()
+        this_zip = tarfile.open(dir_name + '/' + this_tar_file)
+        name_list = this_zip.getnames()[1:]
+        name_list.sort()
+
+        # Determine number of examples
+        total_examples = self.num_total_examples_full(this_zip, name_list)
+
+        chunksize = 1024
+        features = np.zeros((chunksize, self.num_planes, 19, 19))
+        labels = np.zeros((chunksize, *self.label_shape))
+
+        counter = 0
+        chunk = 0
+
+        feature_file_base = dir_name + '/' + data_file_name + '_features_%d'
+        label_file_base = dir_name + '/' + data_file_name + '_' + self.label_name + '_%d'
+
+        for name in name_list:
+            if name.endswith('.sgf'):
+                '''
+                Load Go board and determine handicap of game, then iterate through all moves,
+                store preprocessed move in data_file and apply move to board.
+                '''
+                sgf_content = this_zip.extractfile(name).read()
+                sgf, go_board_no_handy = self.init_go_board(sgf_content)
+                go_board, first_move_done = self.get_handicap(go_board_no_handy, sgf)
+                first_move_done = False
+
+                prev_move = None
+
+                for item in sgf.main_sequence_iter():
+                    color, move = item.get_move()
+
+                    if color is not None and move is not None:
+                        row, col = move
+                        if first_move_done:
+                            X, y = self.feature_and_label(color, prev_move, go_board, self.num_planes)
+                            features[counter%chunksize] = X
+                            labels[counter%chunksize] = y
+                            counter += 1
+
+                            if counter % chunksize == 0:
+                                feature_file = feature_file_base % chunk
+                                label_file = label_file_base % chunk
+                                chunk += 1
+                                np.save(feature_file, features)
+                                np.save(label_file, labels)
+
+                        go_board.apply_move(color, (row, col))
+                        first_move_done = True
+                        prev_move = move
+            else:
+                raise ValueError(name + ' is not a valid sgf')
+
+
 class CollatedProcessor(SevenPlaneProcessor):
 
-    def __init__(self, processors_cls, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+    def __init__(self, processors_cls, name, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
         super(CollatedProcessor, self).__init__(data_directory=data_directory,
                                                   num_planes=num_planes,
                                                   consolidate=consolidate,
                                                   use_generator=use_generator)
-        self.label_name = 'handcrafted'
+        self.label_name = name
         self.processors = [c(data_directory, num_planes, consolidate, use_generator) for c in processors_cls]
         self.label_shape = (len(self.processors), )
 
@@ -509,12 +512,112 @@ class CollatedProcessor(SevenPlaneProcessor):
             _, label_ = processor.feature_and_label(color, move, go_board, num_planes)
             if np.any(label_):
                 label[i] = 1
-        move_array = np.concatenate([move_array, np.ones((1, 19, 19))], axis=0)
+        move_array[7] = np.ones((1, 19, 19))
         return move_array, label
+
+
+class GameBasedProcessor(SevenPlaneProcessor):
+
+    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+        super(GameBasedProcessor, self).__init__(data_directory=data_directory,
+                                                  num_planes=num_planes,
+                                                  consolidate=consolidate,
+                                                  use_generator=use_generator)
+        self.label_name = 'game_based'
+        self.label_shape = (3, )
+
+    
+    def process_zip_full(self, dir_name, zip_file_name, data_file_name, write_fts=True):
+        # Read zipped file and extract name list
+        this_gz = gzip.open(dir_name + '/' + zip_file_name)
+        this_tar_file = zip_file_name[0:-3]
+        this_tar = open(dir_name + '/' + this_tar_file, 'wb')
+        shutil.copyfileobj(this_gz, this_tar)  # random access needed to tar
+        this_tar.close()
+        this_zip = tarfile.open(dir_name + '/' + this_tar_file)
+        name_list = this_zip.getnames()[1:]
+        name_list.sort()
+
+        # Determine number of examples
+        total_examples = self.num_total_examples_full(this_zip, name_list)
+
+        chunksize = 8096
+        if write_fts:
+            features = np.zeros((chunksize, self.num_planes, 19, 19))
+        labels = np.zeros((chunksize, *self.label_shape))
+
+        counter = 0
+        chunk = 0
+
+        feature_file_base = dir_name + '/' + data_file_name + '_features_%d'
+        label_file_base = dir_name + '/' + data_file_name + '_' + self.label_name + '_%d'
+
+        for name in tqdm(name_list):
+            if name.endswith('.sgf'):
+                '''
+                Load Go board and determine handicap of game, then iterate through all moves,
+                store preprocessed move in data_file and apply move to board.
+                '''
+                sgf_content = this_zip.extractfile(name).read()
+                if b'RE[' in sgf_content:
+                    re_idx = sgf_content.index(b'RE[')
+                    end = sgf_content.find(b']', re_idx)
+                    if b'W' in sgf_content[re_idx:end]:
+                        label = 0
+                    elif b'B' in sgf_content[re_idx:end]:
+                        label = 1
+                else:
+                    label = 0
+
+                sgf, go_board_no_handy = self.init_go_board(sgf_content)
+                go_board, first_move_done = self.get_handicap(go_board_no_handy, sgf)
+                first_move_done = False
+
+                prev_move = None
+
+                for item in sgf.main_sequence_iter():
+                    color, move = item.get_move()
+                    if color is not None and move is not None:
+                        row, col = move
+                        if first_move_done:
+                            X, _ = self.feature_and_label(color, move, go_board, self.num_planes)
+                            if write_fts:
+                                features[counter%chunksize] = X
+                            if color == 'b':
+                                y = label
+                            else:
+                                y = 1 - label
+    
+                            # this is the "who wins" label
+                            labels[counter%chunksize][0] = y
+
+                            #color label
+                            labels[counter%chunksize][1] = int(color == 'w')
+
+                            #last move label
+                            prow, pcol = prev_move
+                            labels[counter%chunksize][2] = int(prow*19+pcol < 181)
+                            counter += 1
+
+                            if counter % chunksize == 0:
+                                feature_file = feature_file_base % chunk
+                                label_file = label_file_base % chunk
+                                chunk += 1
+                                if write_fts:
+                                    np.save(feature_file, features)
+                                np.save(label_file, labels)
+
+
+                        go_board.apply_move(color, (row, col))
+                        first_move_done = True
+                        prev_move = move
+            else:
+                raise ValueError(name + ' is not a valid sgf')
+
 
 class ELFFeatureProcessor(SevenPlaneProcessor):
 
-    def __init__(self, processor_cls, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
+    def __init__(self, data_directory='data', num_planes=7, consolidate=True, use_generator=False):
         super(ELFFeatureProcessor, self).__init__(data_directory=data_directory,
                                                   num_planes=num_planes,
                                                   consolidate=consolidate,
@@ -567,11 +670,11 @@ class ELFFeatureProcessor(SevenPlaneProcessor):
                         row, col = move
 
                         if first_move_done:
-                            X_, y_ = super().feature_and_label(color, move, go_board, self.num_planes, board_history)
+                            X_, y_ = super().feature_and_label(color, move, go_board, self.num_planes)
                             board_history.append(X_)
                             if len(board_history) > 8:
                                 board_history = board_history[-8:]
-                            X, y = self.feature_and_label(board_history)
+                            X, y = self.feature_and_label(board_history, color)
                             if write_fts:
                                 features[counter%chunksize] = X
                             labels[counter%chunksize] = y
@@ -591,15 +694,41 @@ class ELFFeatureProcessor(SevenPlaneProcessor):
             else:
                 raise ValueError(name + ' is not a valid sgf')
 
-    def feature_and_label(board_history):
-        agz = np.zeros((18, 19, 19))
-        
+    def feature_and_label(self, board_history, color):
+        AGZ_feat = np.zeros((18, 19, 19))
+        t = 0
+        #needs swapping
+        for X in reversed(board_history):
+            own = np.sum(X[0:3], axis=0)
+            opp = np.sum(X[3:6], axis=0)
+            if t % 2 == 1:
+                own, opp = opp, own
+            AGZ_feat[t*2] = own
+            AGZ_feat[t*2+1] = opp
+            t += 1
+        if color == 'w':
+            AGZ_feat[17] = 1
+        elif color == 'b':
+            AGZ_feat[16] = 1
+        else:
+            raise ValueError
+        return board_history[-1], AGZ_feat
+
+# last move
+# black or white
+# who wins
+# who wins ladder
+# 
 
         
 if __name__=='__main__':
-    data_dir = 'C:/Users/andre/documents/data/go/raw'
-    processor = CollatedProcessor([EyeProcessor, WallProcessor, SurroundProcessor,
-                    CapturedProcessor, CutProcessor, LadderProcessor], data_directory=data_dir)
+    data_dir = '/home/nickatomlin/andrehe/data/handcrafted/'
+    processor = CollatedProcessor([EyeProcessor], 'eye', num_planes=8,#, WallProcessor, SurroundProcessor,
+                    #CapturedProcessor, CutProcessor, LadderProcessor]
+                    data_directory=data_dir)
+    #processor = GameBasedProcessor(data_directory=data_dir)
+    #processor = SevenPlaneProcessor(data_directory=data_dir)
+    #processor = ELFFeatureProcessor(data_directory=data_dir)
     for root, _, files in os.walk(data_dir):
         filenames = [fname for fname in files if fname.endswith('tar.gz')]
         for filename in filenames:

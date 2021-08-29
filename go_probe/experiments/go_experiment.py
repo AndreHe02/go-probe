@@ -8,7 +8,7 @@ class GoExperiment(DefaultExperiment):
 
     channels = [8, 64, 64, 64, 48, 48, 32, 32]
     probe_dims = [nc *19*19 for nc in channels]
-    label_dim = 60
+    label_dim = 90
     num_epochs = 5
 
     def __init__(self, dataset, model_weights):
@@ -25,6 +25,9 @@ class GoExperiment(DefaultExperiment):
         reps = self.model.forward_layer_outputs(X)
         return [rep.flatten(start_dim=1).cuda() for rep in reps]
 
+class HandCraftedGoExperiment(GoExperiment):
+    label_dim = 6
+    
 if __name__ == "__main__":
     #n_fold = 10
     #metrics = {}
