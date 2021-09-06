@@ -1,8 +1,8 @@
 from go_probe.datasets.datasets import DefaultDataset
 from go_probe.experiments import DefaultExperiment
-from go_probe.datasets import CrossValDataset
+from go_probe.datasets import CrossValDataset, pattern_features
 from go_probe.models import load_go_model
-from go_probe.utils.io import write_pkl
+import numpy as np
 
 class GoExperiment(DefaultExperiment):
 
@@ -25,20 +25,36 @@ class GoExperiment(DefaultExperiment):
         reps = self.model.forward_layer_outputs(X)
         return [rep.flatten(start_dim=1).cuda() for rep in reps]
 
-class HandCraftedGoExperiment(GoExperiment):
-    label_dim = 6
+class GoPatternExperiment(GoExperiment):
+    label_dim = 4
     
 if __name__ == "__main__":
-    #n_fold = 10
-    #metrics = {}
-    #for i in range(n_fold):
-    #    dataset = CrossValDataset('labels', 'C:/Users/andre/Documents/data/go/annotated/go_bow', n_fold, 512).val_split(i)
-    #    exp = GoExperiment(dataset, 'C:/Users/andre/Desktop/go-probe/go_model_weights.tar')
-    #    metrics[i] = exp.run()
-    #rite_pkl(metrics, "word_probe_metrics.pkl")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--data_dir')
+    parser.add_argument('-n', '--n_fold', default=10)
+    parser.add_argument('-w', '--weights', default='go_model_weights.tar')
+    args = parser.parse_args()
+    data_dir = args.data_dir
+    n_fold = int(args.n_fold)
+    weights_dir = args.weights
 
-    dataset = CrossValDataset('labels', 'C:/Users/andre/Documents/data/go/annotated/go_bow', 10, 1024).val_split(0)
-    exp = GoExperiment(dataset, 'C:/Users/andre/Desktop/go-probe/go_model_weights.tar')
-    metrics = exp.run()
-    print(metrics)
+    print('Probing natural language features')
+    bow_cvd = CrossValDataset(data_dir, 'svp', 'bow', 10, 512)
+    bow_metrics = []
+    for i in range(n_fold):
+        dataset = bow_cvd.val_split(i)
+        exp = GoExperiment(dataset, weights_dir)
+        fold_metrics = exp.run()
+        bow_metrics.append(fold_metrics)
+    np.save('imitation_bow_aucs.npy', np.stack(bow_metrics))
 
+    print('Probing pattern based features')
+    pattern_cvd = CrossValDataset(data_dir, 'svp', 'patterns', 10, 512)
+    pattern_metrics = []
+    for i in range(n_fold):
+        dataset = pattern_cvd.val_split(i)
+        exp = GoPatternExperiment(dataset, weights_dir)
+        fold_metrics = exp.run()
+        pattern_metrics.append(fold_metrics)
+    np.save('imitation_pattern_aucs.npy', np.stack(pattern_metrics))

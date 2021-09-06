@@ -1,3 +1,4 @@
+from collections import defaultdict
 from betago.dataloader.goboard import GoBoard
 from tqdm import tqdm
 
@@ -44,17 +45,18 @@ def filter_annotations(ants):
     print('%d of %d samples usable' % (len(filtered), len(ants)))
     return filtered
 
-def main(fname):
+def main(fname, output):
     import pickle as pkl
     ants = pkl.load(open(fname, 'rb'))
     filtered = filter_annotations(ants)
-    pkl.dump(filtered, open('annotations_filtered.pkl', 'wb'))
+    with open(output, 'wb') as f:
+        pkl.dump(filtered, f)
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--file', default='annotations.pkl')
+    parser.add_argument('-o', '--output', default='annotations_filtered.pkl')
     args = parser.parse_args()
 
-    fname = args.file
-    main(fname)
+    main(args.file, args.output)

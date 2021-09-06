@@ -1,6 +1,6 @@
 from dlgo.agent.predict import DeepLearningAgent
 from dlgo.encoders.sevenplane import SevenPlaneEncoder
-from go_model import GoModel
+from go_probe.models.go import GoModel
 import torch
 import numpy as np
 from dlgo.gtp import GTPFrontend

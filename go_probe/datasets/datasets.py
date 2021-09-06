@@ -2,9 +2,7 @@ import random
 import os
 import warnings
 warnings.filterwarnings("ignore")
-
 import numpy as np
-
 import torch
 
 
@@ -14,13 +12,13 @@ def collate(batch):
 
 class DefaultDataset:
 
-    def __init__(self, label_name, data_dir, train_p, test_p, batch_size, ft_name='features', seed=0):
+    def __init__(self, feature_name, label_name, data_dir, train_p, test_p, batch_size, seed=0):
         random.seed(seed)
         self.batch_size = batch_size
         self.data_dir = data_dir
         for root, _, files in os.walk(data_dir):
-            filenames = [os.path.join(root, fname) for fname in files if ft_name in fname]
-        data_files = [(fname, fname.replace(ft_name, label_name)) for fname in filenames]
+            filenames = [os.path.join(root, fname) for fname in files if feature_name in fname]
+        data_files = [(fname, fname.replace(feature_name, label_name)) for fname in filenames]
 
         random.shuffle(data_files)
 
@@ -47,6 +45,26 @@ class DefaultDataset:
 
 class CrossValDataset:
 
+    def __init__(self, data_dir, feature_name, label_name, n_fold, batch_size, seed=0):
+        random.seed(seed)
+        self.batch_size = batch_size
+        self.data_dir = data_dir
+        for root, _, files in os.walk(data_dir):
+            filenames = [os.path.join(root, fname) for fname in files if feature_name in fname]
+
+        data_files = [(fname, fname.replace(feature_name, label_name)) for fname in filenames]
+        random.shuffle(data_files)
+
+        self.data_files = data_files
+        self.n_fold = n_fold
+
+    def val_split(self, val_idx):
+        start = int(len(self.data_files) * val_idx / self.n_fold)
+        end = int(len(self.data_files) * (val_idx+1) / self.n_fold)
+        test_split = self.data_files[start:end]
+        train_split = self.data_files[:start] + self.data_files[end:]
+        return CrossValDataset.Split(train_split, test_split, self.batch_size)
+
     class Split:
         def __init__(self, train_split, test_split, batch_size):
             self.splits = {}
@@ -64,26 +82,6 @@ class CrossValDataset:
             assert split in ['train', 'test']
             return torch.utils.data.DataLoader(SplitLoader(self.splits[split], self.batch_size, max_ram_files), batch_size=1, pin_memory=True, collate_fn=collate,  num_workers=num_workers) # just 1 worker since it should be super fast anyway
 
-    def __init__(self, label_name, data_dir, n_fold, batch_size, ft_name='features', seed=0):
-        random.seed(seed)
-        self.batch_size = batch_size
-        self.data_dir = data_dir
-        for root, _, files in os.walk(data_dir):
-            filenames = [os.path.join(root, fname) for fname in files if ft_name in fname]
-
-        data_files = [(fname, fname.replace(ft_name, label_name)) for fname in filenames]
-        random.shuffle(data_files)
-
-        self.data_files = data_files
-        self.n_fold = n_fold
-
-    def val_split(self, val_idx):
-        start = int(len(self.data_files) * val_idx / self.n_fold)
-        end = int(len(self.data_files) * (val_idx+1) / self.n_fold)
-        test_split = self.data_files[start:end]
-        train_split = self.data_files[:start] + self.data_files[end:]
-        return CrossValDataset.Split(train_split, test_split, self.batch_size)
-
 
 class SplitLoader(torch.utils.data.IterableDataset):
     def __init__(self, filenames, batch_size, max_ram_files=1):
@@ -96,9 +94,11 @@ class SplitLoader(torch.utils.data.IterableDataset):
         self.load_pos = 0
         self.pos = 0
 
+        features_file, labels_file = self.filenames[0]
+        self.bucket_size = len(np.load(labels_file))
 
     def __len__(self):
-        return int(len(self.filenames) * 1024 / self.batch_size)
+        return int(len(self.filenames) * self.bucket_size / self.batch_size)
 
 
     def __iter__(self):

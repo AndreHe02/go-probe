@@ -31,7 +31,6 @@ def draw_go_board(b_board, w_board, feat):
     ax.set_xlim(-1,19)
     ax.set_ylim(-1,19)
 
-    # draw Go stones at (10,10) and (13,16)
     def draw_stone(row, col, color):
         if color == 'b':
             ax.plot(row,col,'o',markersize=25, markeredgecolor=(0,0,0), markerfacecolor='k', markeredgewidth=2)
