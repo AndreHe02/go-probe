@@ -9,12 +9,14 @@ WORDS_PER_CATEGORY = 30
 def count(words, annotations):
     freqs = defaultdict(lambda : 0)
     for ant in annotations:
+        counted = set()
         cmt = ant['comments'].lower()
         for word in re.sub('[^A-Za-z0-9 ]+', '', cmt).split(' '):
             if len(word) < 2:
                 continue
-            if word in words:
+            if word in words and word not in counted:
                 freqs[word] += 1
+                counted.add(word)
     return freqs
 
 def get_vocabulary(annotations):
@@ -22,7 +24,7 @@ def get_vocabulary(annotations):
     for ant in annotations:
         cmt = ant['comments'].lower()
         for word in re.sub('[^A-Za-z0-9 ]+', '', cmt).split(' '):
-            if len(word) < 2:
+            if len(word) < 2 or not word.isalpha():
                 continue
             word_freqs[word] += 1
     return word_freqs
@@ -56,7 +58,7 @@ def main(fname, dict_file):
     
     import random
     selected_words = []
-    random.seed(0)
+    random.seed(1)
     while len(selected_words) < WORDS_PER_CATEGORY:
         w = random.choice(similar_freq_words)
         if w not in top_go_words and w not in selected_words:

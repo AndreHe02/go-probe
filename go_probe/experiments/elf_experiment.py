@@ -39,7 +39,7 @@ if __name__ == "__main__":
     weights_dir = args.weights
 
     print('Probing natural language features')
-    bow_cvd = CrossValDataset(data_dir, 'elf', 'bow', 10, 512)
+    bow_cvd = CrossValDataset(data_dir, 'elf', 'bow', n_fold, 512)
     bow_metrics = []
     for i in range(n_fold):
         dataset = bow_cvd.val_split(i)
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     np.save('elf_bow_aucs.npy', np.stack(bow_metrics))
 
     print('Probing pattern based features')
-    pattern_cvd = CrossValDataset(data_dir, 'elf', 'patterns', 10, 512)
+    pattern_cvd = CrossValDataset(data_dir, 'elf', 'patterns', n_fold, 512)
     pattern_metrics = []
     for i in range(n_fold):
         dataset = pattern_cvd.val_split(i)

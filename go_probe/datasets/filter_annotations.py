@@ -49,6 +49,9 @@ def main(fname, output):
     import pickle as pkl
     ants = pkl.load(open(fname, 'rb'))
     filtered = filter_annotations(ants)
+    import random
+    random.seed(0)
+    random.shuffle(filtered)
     with open(output, 'wb') as f:
         pkl.dump(filtered, f)
 

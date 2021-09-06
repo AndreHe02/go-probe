@@ -59,8 +59,8 @@ class CrossValDataset:
         self.n_fold = n_fold
 
     def val_split(self, val_idx):
-        start = int(len(self.data_files) * val_idx / self.n_fold)
-        end = int(len(self.data_files) * (val_idx+1) / self.n_fold)
+        start = len(self.data_files) * val_idx // self.n_fold
+        end = len(self.data_files) * (val_idx+1) // self.n_fold
         test_split = self.data_files[start:end]
         train_split = self.data_files[:start] + self.data_files[end:]
         return CrossValDataset.Split(train_split, test_split, self.batch_size)
