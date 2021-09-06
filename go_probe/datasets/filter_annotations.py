@@ -1,6 +1,5 @@
 from betago.dataloader.goboard import GoBoard
 from tqdm import tqdm
-import pickle as pkl
 
 def filter_annotations(ants):
     '''
@@ -44,3 +43,18 @@ def filter_annotations(ants):
     print('Skipped for reasons:', skipped)
     print('%d of %d samples usable' % (len(filtered), len(ants)))
     return filtered
+
+def main(fname):
+    import pickle as pkl
+    ants = pkl.load(open(fname, 'rb'))
+    filtered = filter_annotations(ants)
+    pkl.dump(filtered, open('annotations_filtered.pkl', 'wb'))
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--file', default='annotations.pkl')
+    args = parser.parse_args()
+
+    fname = args.file
+    main(fname)

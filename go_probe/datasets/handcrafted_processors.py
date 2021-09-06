@@ -714,12 +714,6 @@ class ELFFeatureProcessor(SevenPlaneProcessor):
             raise ValueError
         return board_history[-1], AGZ_feat
 
-# last move
-# black or white
-# who wins
-# who wins ladder
-# 
-
         
 if __name__=='__main__':
     data_dir = '/home/nickatomlin/andrehe/data/handcrafted/'
