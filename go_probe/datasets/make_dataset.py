@@ -4,11 +4,9 @@ import os
 import re
 import pickle as pkl
 
-
 from dlgo import goboard_fast as goboard
 from dlgo.gotypes import Point, Player
 from dlgo.encoders.sevenplane import SevenPlaneEncoder
-from dlgo.gosgf.sgf_properties import interpret_go_point
 
 def seven_planes(ant):
     sgf_str = ant['sgf']
