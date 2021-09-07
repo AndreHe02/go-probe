@@ -1,6 +1,5 @@
-from go_probe.datasets.datasets import DefaultDataset
 from go_probe.experiments import DefaultExperiment
-from go_probe.datasets import CrossValDataset, pattern_features
+from go_probe.datasets import CrossValDataset
 from go_probe.models import load_go_model
 import numpy as np
 

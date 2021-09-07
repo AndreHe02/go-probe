@@ -43,3 +43,7 @@ def load_go_model(path, rm_prefix=True):
         state_dict = {key[7:]:state_dict[key] for key in state_dict}
     model.load_state_dict(state_dict)
     return model
+
+def load_control_model():
+    model = GoModel(None)
+    return model
