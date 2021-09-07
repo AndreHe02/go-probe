@@ -35,9 +35,12 @@ mkdir dataset
 python go_probe/datasets/generate_dataset.py -f annotations_filtered.pkl -d dataset/
 ```
 
+## Get ELF Weights
+Download ELF weights from https://github.com/pytorch/ELF/releases/download/pretrained-go-19x19-v2/pretrained-go-19x19-v2.bin and place under go-probe/
+
 ## Running Experiments
 By default, this runs probes for both keyword-based features and pattern-based features and stores results in numpy arrays with shape (# cross validation folds, # probed layers, # features). 
 ```{bash}
-python go_probe/experiments/go_experiment.py -d dataset/ -n 10
-python go_probe/experiments/elf_experiment.py -d dataset/ -n 10
+python go_probe/experiments/go_experiment.py -d dataset/ -n 10 -w go_model_weights.tar
+python go_probe/experiments/elf_experiment.py -d dataset/ -n 10 -w pretrained-go-19x19-v2.bin
 ```
