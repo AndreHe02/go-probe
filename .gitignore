@@ -1,6 +1,6 @@
 .ipynb_checkpoints
 __pycache__
-results
+past_results
 notebooks
 *.bin
 .vscode

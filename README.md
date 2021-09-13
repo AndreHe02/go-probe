@@ -3,11 +3,13 @@
 This is the code repository for *Understanding Game-Playing Agents with Natural Language Annotations*
 
 ## Getting Started
-
+You can also use environment.yml to setup your conda environment
 ```{bash}
 conda create -n go python=3.6
 conda activate go
 conda install pytorch==1.7.1 cudatoolkit=10.1 -c pytorch
+conda install tqdm
+pip install -U scikit-learn
 
 cd ~
 git clone https://github.com/AndreHe02/go-probe.git
@@ -39,7 +41,7 @@ python go_probe/datasets/generate_dataset.py -f annotations_filtered.pkl -d data
 Download ELF weights from https://github.com/pytorch/ELF/releases/download/pretrained-go-19x19-v2/pretrained-go-19x19-v2.bin and place under go-probe/
 
 ## Running Experiments
-By default, this runs probes for both keyword-based features and pattern-based features and stores results in numpy arrays with shape (# cross validation folds, # probed layers, # features). 
+By default, this runs probes for both keyword-based and pattern-based features and stores results in numpy arrays with shape (# cross validation folds, # probed layers, # features classifiers). The experiment was run on a Quadro RTX 6000. 
 ```{bash}
 python go_probe/experiments/go_experiment.py -d dataset/ -n 10 -w go_model_weights.tar
 python go_probe/experiments/elf_experiment.py -d dataset/ -n 10 -w pretrained-go-19x19-v2.bin
