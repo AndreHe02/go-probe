@@ -25,36 +25,45 @@ def has_wall(svp):
 
 def has_eye(svp):
 
-    def is_surrounded(own, opp, i, j, visited):
-        if visited[i][j]:
+    def _is_surrounded(own, opp, i, j, marked):
+        if marked[i][j]:
             return True
         if opp[i][j]:
             return False
         if own[i][j]:
             return True
-        visited[i][j] = 1
+        marked[i][j] = 1
         adj_list = ((i+1, j), (i-1, j), (i, j-1), (i, j+1))
         for adj in adj_list:
             if adj[0] < 0 or adj[0] > 18 or adj[1] < 0 or adj[1] > 18:
                 continue
-            if not is_surrounded(own, opp, adj[0], adj[1], visited):
+            if not _is_surrounded(own, opp, adj[0], adj[1], marked):
                 return False
         return True
 
+    def is_surrounded(own, opp, i, j):
+        marked = np.zeros((19, 19))
+        if _is_surrounded(own, opp, i, j, marked):
+            return marked
+        else:
+            return None
+
+    def mark_surrounded(own, opp):
+        marked = np.zeros((19, 19))
+        for i in range(19):
+            for j in range(19):
+                if not marked[i][j]:
+                    group = is_surrounded(own, opp, i, j)
+                    if group is not None:
+                        marked += group
+                        if np.any(group):
+                            return True
+        return marked
+
     own = np.sum(svp[0:3], axis=0)
     opp = np.sum(svp[3:6], axis=0)
-    
-    marked = np.zeros((19, 19))
-    for i in range(19):
-        for j in range(19):
-            if marked[i][j]:
-                continue 
-            visited = np.zeros((19, 19))
-            if is_surrounded(own, opp, i, j, visited):
-                return True
-            else:
-                marked += visited
-    return False
+    marks = mark_surrounded(own, opp)
+    return np.any(marks)
 
 def has_cut(svp):
 
